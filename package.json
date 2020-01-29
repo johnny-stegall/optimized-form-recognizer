@@ -1,0 +1,19 @@
+{
+	"name": "Split PDF",
+	"version": "0.0.0",
+	"description": "Splits multi-page files into individual pages and stores them in the specified container. If classification is required, pages are saved as PNG files and sent to Custom Vision for classification, otherwise pages are saved as PDF files. Individual pages are then sent to Form Recognizer for data extraction.",
+	"main": "index.js",
+	"author": {
+		"name": "Johnny Stegall"
+	},
+	"dependencies": {
+		"@azure/storage-blob": "^12.0.0",
+		"@azure/service-bus": "^1.1.2",
+		"@types/dotenv": "8.2.0",
+		"canvas": "^2.6.1",
+		"dotenv": "^8.2.0",
+		"pdfjs-dist": "^2.2.228",
+		"pdf-lib": "^1.2.1",
+		"uuid": "^3.3.3"
+	}
+}

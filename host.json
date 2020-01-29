@@ -1,0 +1,28 @@
+{
+  "version": "2.0",
+  "extensions":
+  {
+    "serviceBus":
+    {
+      "prefetchCount": 100,
+      "messageHandlerOptions":
+      {
+        "autoComplete": false,
+        "maxConcurrentCalls": 32,
+        "maxAutoRenewDuration": "00:55:00"
+      },
+      "sessionHandlerOptions":
+      {
+        "autoComplete": false,
+        "messageWaitTimeout": "00:00:30",
+        "maxAutoRenewDuration": "00:55:00",
+        "maxConcurrentSessions": 16
+      }
+    }
+  },
+  "extensionBundle":
+  {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[1.*, 2.0.0)"
+  }
+}

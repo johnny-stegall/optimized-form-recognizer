@@ -1,0 +1,1614 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "API Connection: Blob Storage": {
+            "defaultValue": "azure-blob",
+            "type": "String"
+        },
+        "API Connection: Cosmos DB": {
+            "defaultValue": "cosmos-db",
+            "type": "String"
+        },
+        "API Connection: Custom Vision": {
+            "defaultValue": "cognitive-services-custom-vision",
+            "type": "String"
+        },
+        "App Service Plan": {
+            "defaultValue": "Document-Extraction-ASP",
+            "type": "String"
+        },
+        "Application Insights": {
+            "defaultValue": "Document-Extraction",
+            "type": "String"
+        },
+        "Cognitive Service: Custom Vision": {
+            "type": "String"
+        },
+        "Cognitive Service: Custom Vision (Prediction)": {
+            "type": "String"
+        },
+        "Cognitive Service: Form Recognizer": {
+            "type": "String"
+        },
+        "Cosmos DB: Account": {
+            "defaultValue": "document-extraction",
+            "type": "String"
+        },
+        "Cosmos DB: Database": {
+            "defaultValue": "Document-Metadata",
+            "type": "String"
+        },
+        "Cosmos DB: Database Collection": {
+            "defaultValue": "Packets",
+            "type": "String"
+        },
+        "Function App: PDF-Splitter": {
+            "type": "String"
+        },
+        "Logic App: Document Processing": {
+            "defaultValue": "Document-Processing",
+            "type": "String"
+        },
+        "Logic App: Document Search": {
+            "defaultValue": "Document-Search",
+            "type": "String"
+        },
+        "Storage Account": {
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.CognitiveServices/accounts",
+            "apiVersion": "2017-04-18",
+            "name": "[parameters('Cognitive Service: Custom Vision')]",
+            "location": "westus2",
+            "sku": {
+                "name": "S0"
+            },
+            "kind": "CustomVision.Training",
+            "properties": {
+                "customSubDomainName": "[parameters('Cognitive Service: Custom Vision')]"
+            }
+        },
+        {
+            "type": "Microsoft.CognitiveServices/accounts",
+            "apiVersion": "2017-04-18",
+            "name": "[parameters('Cognitive Service: Custom Vision (Prediction)')]",
+            "location": "westus2",
+            "sku": {
+                "name": "S0"
+            },
+            "kind": "CustomVision.Prediction",
+            "properties": {
+                "customSubDomainName": "[parameters('Cognitive Service: Custom Vision (Prediction)')]"
+            }
+        },
+        {
+            "type": "Microsoft.CognitiveServices/accounts",
+            "apiVersion": "2017-04-18",
+            "name": "[parameters('Cognitive Service: Form Recognizer')]",
+            "location": "westus2",
+            "sku": {
+                "name": "S0"
+            },
+            "kind": "FormRecognizer",
+            "properties": {
+                "customSubDomainName": "[parameters('Cognitive Service: Form Recognizer')]"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[parameters('Storage Account')]",
+            "location": "westus2",
+            "sku": {
+                "name": "Standard_RAGRS",
+                "tier": "Standard"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                },
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                },
+                "accessTier": "Hot"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(parameters('Storage Account'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('Storage Account'))]"
+            ],
+            "sku": {
+                "name": "Standard_RAGRS"
+            },
+            "properties": {
+                "cors": {
+                    "corsRules": []
+                },
+                "deleteRetentionPolicy": {
+                    "enabled": false
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/fileServices",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(parameters('Storage Account'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('Storage Account'))]"
+            ],
+            "sku": {
+                "name": "Standard_RAGRS"
+            },
+            "properties": {
+                "cors": {
+                    "corsRules": []
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2018-02-01",
+            "name": "[parameters('App Service Plan')]",
+            "location": "West US 2",
+            "sku": {
+                "name": "Y1",
+                "tier": "Dynamic",
+                "size": "Y1",
+                "family": "Y",
+                "capacity": 0
+            },
+            "kind": "functionapp",
+            "properties": {
+                "perSiteScaling": false,
+                "maximumElasticWorkerCount": 1,
+                "isSpot": false,
+                "reserved": false,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2018-11-01",
+            "name": "[parameters('Function App: PDF-Splitter')]",
+            "location": "West US 2",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('App Service Plan'))]"
+            ],
+            "kind": "functionapp",
+            "properties": {
+                "enabled": true,
+                "hostNameSslStates": [
+                    {
+                        "name": "pdf-splitter.azurewebsites.net",
+                        "sslState": "Disabled",
+                        "hostType": "Standard"
+                    },
+                    {
+                        "name": "pdf-splitter.scm.azurewebsites.net",
+                        "sslState": "Disabled",
+                        "hostType": "Repository"
+                    }
+                ],
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('App Service Plan'))]",
+                "reserved": false,
+                "isXenon": false,
+                "hyperV": false,
+                "scmSiteAlsoStopped": false,
+                "clientAffinityEnabled": true,
+                "clientCertEnabled": false,
+                "hostNamesDisabled": false,
+                "containerSize": 1536,
+                "dailyMemoryTimeQuota": 0,
+                "httpsOnly": false,
+                "redundancyMode": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites/config",
+            "apiVersion": "2018-11-01",
+            "name": "[concat(parameters('Function App: PDF-Splitter'), '/web')]",
+            "location": "West US 2",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('Function App: PDF-Splitter'))]"
+            ],
+            "properties": {
+                "numberOfWorkers": 1,
+                "defaultDocuments": [
+                    "Default.htm",
+                    "Default.html",
+                    "Default.asp",
+                    "index.htm",
+                    "index.html",
+                    "iisstart.htm",
+                    "default.aspx",
+                    "index.php"
+                ],
+                "netFrameworkVersion": "v4.0",
+                "phpVersion": "5.6",
+                "requestTracingEnabled": false,
+                "remoteDebuggingEnabled": false,
+                "httpLoggingEnabled": false,
+                "logsDirectorySizeLimit": 35,
+                "detailedErrorLoggingEnabled": false,
+                "publishingUsername": "$PDF-Splitter",
+                "scmType": "None",
+                "use32BitWorkerProcess": true,
+                "webSocketsEnabled": false,
+                "alwaysOn": false,
+                "managedPipelineMode": "Integrated",
+                "virtualApplications": [
+                    {
+                        "virtualPath": "/",
+                        "physicalPath": "site\\wwwroot",
+                        "preloadEnabled": false
+                    }
+                ],
+                "loadBalancing": "LeastRequests",
+                "experiments": {
+                    "rampUpRules": []
+                },
+                "autoHealEnabled": false,
+                "cors": {
+                    "allowedOrigins": [
+                        "https://functions.azure.com",
+                        "https://functions-staging.azure.com",
+                        "https://functions-next.azure.com"
+                    ],
+                    "supportCredentials": false
+                },
+                "localMySqlEnabled": false,
+                "ipSecurityRestrictions": [
+                    {
+                        "ipAddress": "Any",
+                        "action": "Allow",
+                        "priority": 1,
+                        "name": "Allow all",
+                        "description": "Allow all access"
+                    }
+                ],
+                "scmIpSecurityRestrictions": [
+                    {
+                        "ipAddress": "Any",
+                        "action": "Allow",
+                        "priority": 1,
+                        "name": "Allow all",
+                        "description": "Allow all access"
+                    }
+                ],
+                "scmIpSecurityRestrictionsUseMain": false,
+                "http20Enabled": false,
+                "minTlsVersion": "1.2",
+                "ftpsState": "AllAllowed",
+                "reservedInstanceCount": 0
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites/hostNameBindings",
+            "apiVersion": "2018-11-01",
+            "name": "[concat(parameters('Function App: PDF-Splitter'), '/', parameters('Function App: PDF-Splitter'), '.azurewebsites.net')]",
+            "location": "West US 2",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('Function App: PDF-Splitter'))]"
+            ],
+            "properties": {
+                "siteName": "PDF-Splitter",
+                "hostNameType": "Verified"
+            }
+        },
+        {
+            "type": "microsoft.insights/components",
+            "apiVersion": "2015-05-01",
+            "name": "[parameters('Application Insights')]",
+            "location": "westus2",
+            "kind": "web",
+            "properties": {
+                "Application_Type": "web",
+                "Request_Source": "IbizaWebAppExtensionCreate"
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts",
+            "apiVersion": "2019-12-12",
+            "name": "[parameters('Cosmos DB: Account')]",
+            "location": "West US 2",
+            "tags": {
+                "defaultExperience": "Core (SQL)",
+                "hidden-cosmos-mmspecial": ""
+            },
+            "kind": "GlobalDocumentDB",
+            "properties": {
+                "enableAutomaticFailover": false,
+                "enableMultipleWriteLocations": false,
+                "isVirtualNetworkFilterEnabled": false,
+                "virtualNetworkRules": [],
+                "disableKeyBasedMetadataWriteAccess": false,
+                "databaseAccountOfferType": "Standard",
+                "consistencyPolicy": {
+                    "defaultConsistencyLevel": "Session",
+                    "maxIntervalInSeconds": 5,
+                    "maxStalenessPrefix": 100
+                },
+                "locations": [
+                    {
+                        "locationName": "West US 2",
+                        "failoverPriority": 0,
+                        "isZoneRedundant": false
+                    }
+                ],
+                "capabilities": []
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+            "apiVersion": "2019-12-12",
+            "name": "[concat(parameters('Cosmos DB: Account'), '/', parameters('Cosmos DB: Database'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('Cosmos DB: Account'))]"
+            ],
+            "properties": {
+                "resource": {
+                    "id": "[parameters('Cosmos DB: Database')]"
+                },
+                "options": {}
+            }
+        },
+        {
+            "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+            "apiVersion": "2019-12-12",
+            "name": "[concat(parameters('Cosmos DB: Account'), '/', parameters('Cosmos DB: Database'), '/', parameters('Cosmos DB: Database Collection'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('Cosmos DB: Account'), parameters('Cosmos DB: Database'))]",
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('Cosmos DB: Account'))]"
+            ],
+            "properties": {
+                "resource": {
+                    "id": "Packets",
+                    "indexingPolicy": {
+                        "indexingMode": "consistent",
+                        "automatic": true,
+                        "includedPaths": [
+                            {
+                                "path": "/*"
+                            }
+                        ],
+                        "excludedPaths": [
+                            {
+                                "path": "/\"_etag\"/?"
+                            }
+                        ]
+                    },
+                    "partitionKey": {
+                        "paths": [
+                            "/customerName"
+                        ],
+                        "kind": "Hash"
+                    },
+                    "conflictResolutionPolicy": {
+                        "mode": "LastWriterWins",
+                        "conflictResolutionPath": "/_ts"
+                    }
+                },
+                "options": {}
+            }
+        },
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[parameters('API Connection: Blob Storage')]",
+            "location": "westus2",
+            "properties": {
+                "displayName": "Document Storage",
+                "customParameterValues": {},
+                "api": {
+                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/azureblob')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[parameters('API Connection: Custom Vision')]",
+            "location": "westus2",
+            "properties": {
+                "displayName": "Page Classifier",
+                "customParameterValues": {},
+                "api": {
+                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/cognitiveservicescustomvision')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[parameters('API Connection: Cosmos DB')]",
+            "location": "westus2",
+            "properties": {
+                "displayName": "Cosmos DB",
+                "customParameterValues": {},
+                "api": {
+                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/documentdb')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('Logic App: Document Processing')]",
+            "location": "westus2",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', parameters('API Connection: Blob Storage'))]",
+                "[resourceId('Microsoft.Web/connections', parameters('API Connection: Custom Vision'))]",
+                "[resourceId('Microsoft.Web/connections', parameters('API Connection: Cosmos DB'))]"
+            ],
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_blob_is_added_or_modified_(properties_only)": {
+                            "recurrence": {
+                                "frequency": "Minute",
+                                "interval": 1
+                            },
+                            "splitOn": "@triggerBody()",
+                            "metadata": {
+                                "JTJmZGVsaXZlcnktcGFnZXM=": "/pages",
+                                "JTJmcGFnZXM=": "/pages"
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Blob Storage'), '''][''connectionId'']')]"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/datasets/default/triggers/batch/onupdatedfile",
+                                "queries": {
+                                    "folderId": "JTJmZGVsaXZlcnktcGFnZXM=",
+                                    "maxFileCount": 25
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Check_for_existing_document": {
+                            "runAfter": {
+                                "Initialize_FileName_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "QueryText": "SELECT * FROM c where c.id = '@{variables('FileName')}'"
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Cosmos DB'), '''][''connectionId'']')]"
+                                    }
+                                },
+                                "method": "post",
+																"path": "[concat('/v2/dbs/@{encodeURIComponent(''', parameters('Cosmos DB: Database'), ''')}/colls/@{encodeURIComponent(''', parameters('Cosmos DB: Database Collection'), ''')}/query')]",
+                                "retryPolicy": {
+                                    "count": 90,
+                                    "interval": "PT5S",
+                                    "type": "fixed"
+                                }
+                            }
+                        },
+                        "Classify_page": {
+                            "runAfter": {
+                                "Initialize_Classification_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": "@body('Get_blob_content')",
+                                "host": {
+                                    "connection": {
+                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Custom Vision'), '''][''connectionId'']')]"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "/v2/customvision/v3.0/Prediction/@{encodeURIComponent('')}/classify/iterations/@{encodeURIComponent('')}/image"
+                            }
+                        },
+                        "Compose_document_metadata_JSON": {
+                            "runAfter": {
+                                "Get_latest_document_metadata": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Compose",
+                            "inputs": {
+                                "customerName": "Unknown",
+                                "deliveryNumber": "@coalesce(body('Get_latest_document_metadata')?['deliveryNumber'], body('Parse_extracted_data_JSON')['analyzeResult']['documentResults'][0]['fields']?['DeliveryNumber']?['text'])",
+                                "id": "@{variables('FileName')}",
+                                "invoiceNumber": "@coalesce(body('Get_latest_document_metadata')?['invoiceNumber'], body('Parse_extracted_data_JSON')['analyzeResult']['documentResults'][0]['fields']?['InvoiceNumber']?['text'])",
+                                "shippingReference": "@coalesce(body('Get_latest_document_metadata')?['shippingReference'], body('Parse_extracted_data_JSON')?['analyzeResult']['documentResults'][0]['fields']?['ShippingReference']?['text'])",
+                                "workOrder": "@coalesce(body('Get_latest_document_metadata')?['workOrder'], body('Parse_extracted_data_JSON')['analyzeResult']['documentResults'][0]['fields']?['WorkOrder']?['text'])"
+                            }
+                        },
+                        "Create_or_update_document": {
+                            "runAfter": {
+                                "Compose_document_metadata_JSON": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": "@outputs('Compose_document_metadata_JSON')",
+                                "headers": {
+                                    "x-ms-documentdb-is-upsert": true,
+                                    "x-ms-documentdb-raw-partitionkey": "\"Unknown\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Cosmos DB'), '''][''connectionId'']')]"
+                                    }
+                                },
+                                "method": "post",
+																"path": "[concat('/dbs/@{encodeURIComponent(''', parameters('Cosmos DB: Database'), ''')}/colls/@{encodeURIComponent(''', parameters('Cosmos DB: Database Collection'), ''')}/docs')]",
+                                "retryPolicy": {
+                                    "count": 90,
+                                    "interval": "PT5S",
+                                    "type": "fixed"
+                                }
+                            }
+                        },
+                        "Delete_blob": {
+                            "runAfter": {
+                                "Create_or_update_document": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Blob Storage'), '''][''connectionId'']')]"
+                                    }
+                                },
+                                "method": "delete",
+                                "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['FileLocator']))}"
+                            }
+                        },
+                        "Form_Recognizer:_Analyze_Form": {
+                            "runAfter": {
+                                "If_classified_Negative,_delete": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Http",
+                            "inputs": {
+                                "body": "@body('Get_blob_content')",
+                                "headers": {
+                                    "Content-Type": "image/png",
+                                    "Ocp-Apim-Subscription-Key": ""
+                                },
+                                "method": "POST",
+                                "uri": "https://packet-form-recognizer.cognitiveservices.azure.com/formrecognizer/v2.0-preview/custom/models/6716ec84-0240-446a-8243-b4440998589b/analyze"
+                            }
+                        },
+                        "Get_Result_URL_from_header": {
+                            "runAfter": {
+                                "Form_Recognizer:_Analyze_Form": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Compose",
+                            "inputs": "@outputs('Form_Recognizer:_Analyze_Form')['headers']?['Operation-Location']"
+                        },
+                        "Get_blob_content": {
+                            "runAfter": {
+                                "If_fully_populated_then_terminate": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Blob Storage'), '''][''connectionId'']')]"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['FileLocator']))}/content",
+                                "queries": {
+                                    "inferContentType": true
+                                }
+                            }
+                        },
+                        "Get_existing_document_metadata": {
+                            "runAfter": {
+                                "Check_for_existing_document": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Compose",
+                            "inputs": "@first(body('Check_for_existing_document')?['Documents'])"
+                        },
+                        "Get_latest_document_metadata": {
+                            "runAfter": {
+                                "Refresh_document": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ParseJson",
+                            "inputs": {
+                                "content": "@if(empty(body('Refresh_document')?['Documents']), json('{}'), first(body('Refresh_document')?['Documents']))",
+                                "schema": {
+                                    "properties": {
+                                        "customerName": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "deliveryNumber": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "id": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "invoiceNumber": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "shippingReference": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "workOrder": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ]
+                                }
+                            }
+                        },
+                        "If_classified_Negative,_delete": {
+                            "actions": {
+                                "Delete_Negative_page_blob": {
+                                    "runAfter": {},
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Blob Storage'), '''][''connectionId'']')]"
+                                            }
+                                        },
+                                        "method": "delete",
+                                        "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['FileLocator']))}"
+                                    }
+                                },
+                                "Terminate_-_Negative_page": {
+                                    "runAfter": {
+                                        "Delete_Negative_page_blob": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Terminate",
+                                    "inputs": {
+                                        "runStatus": "Cancelled"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Set_Classification_variable_to_highest_probability_prediction": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "equals": [
+                                            "@variables('Classification')['tagName']",
+                                            "Negative"
+                                        ]
+                                    }
+                                ]
+                            },
+                            "type": "If"
+                        },
+                        "If_fully_populated_then_terminate": {
+                            "actions": {
+                                "Delete_unnecessary_page_blob": {
+                                    "runAfter": {},
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Blob Storage'), '''][''connectionId'']')]"
+                                            }
+                                        },
+                                        "method": "delete",
+                                        "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['FileLocator']))}"
+                                    }
+                                },
+                                "Terminate_-_already_populated": {
+                                    "runAfter": {
+                                        "Delete_unnecessary_page_blob": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Terminate",
+                                    "inputs": {
+                                        "runStatus": "Cancelled"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Get_existing_document_metadata": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "greater": [
+                                            "@body('Check_for_existing_document')?['_count']",
+                                            0
+                                        ]
+                                    },
+                                    {
+                                        "and": [
+                                            {
+                                                "not": {
+                                                    "equals": [
+                                                        "@outputs('Get_existing_document_metadata')?['deliveryNumber']",
+                                                        "@null"
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "not": {
+                                                    "equals": [
+                                                        "@outputs('Get_existing_document_metadata')?['invoiceNumber']",
+                                                        "@null"
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "not": {
+                                                    "equals": [
+                                                        "@outputs('Get_existing_document_metadata')?['shippingReference']",
+                                                        "@null"
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "not": {
+                                                    "equals": [
+                                                        "@outputs('Get_existing_document_metadata')?['workOrder']",
+                                                        "@null"
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "type": "If"
+                        },
+                        "Initialize_Classification_variable": {
+                            "runAfter": {
+                                "Get_blob_content": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "Classification",
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_FileName_variable": {
+                            "runAfter": {},
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "FileName",
+                                        "type": "string",
+                                        "value": "@{concat(substring(triggerBody()?['Name'], 0, lastIndexOf(triggerBody()?['Name'], '-')), '.pdf')}"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_Status_variable": {
+                            "runAfter": {
+                                "Get_Result_URL_from_header": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "Status",
+                                        "type": "string"
+                                    }
+                                ]
+                            }
+                        },
+                        "Refresh_document": {
+                            "runAfter": {
+                                "Until_analysis_completes": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "QueryText": "SELECT * FROM c where c.id = '@{variables('FileName')}'"
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Cosmos DB'), '''][''connectionId'']')]"
+                                    }
+                                },
+                                "method": "post",
+																"path": "[concat('/v2/dbs/@{encodeURIComponent(''', parameters('Cosmos DB: Database'), ''')}/colls/@{encodeURIComponent(''', parameters('Cosmos DB: Database Collection'), ''')}/query')]",
+                                "retryPolicy": {
+                                    "count": 90,
+                                    "interval": "PT5S",
+                                    "type": "fixed"
+                                }
+                            }
+                        },
+                        "Set_Classification_variable_to_highest_probability_prediction": {
+                            "runAfter": {
+                                "Classify_page": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "SetVariable",
+                            "inputs": {
+                                "name": "Classification",
+                                "value": "@first(body('Classify_page')?['predictions'])"
+                            }
+                        },
+                        "Until_analysis_completes": {
+                            "actions": {
+                                "Delay_5_seconds": {
+                                    "runAfter": {
+                                        "Set_Status_variable": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Wait",
+                                    "inputs": {
+                                        "interval": {
+                                            "count": 5,
+                                            "unit": "Second"
+                                        }
+                                    }
+                                },
+                                "Form_Recognizer:_Get_Analysis_Result": {
+                                    "runAfter": {},
+                                    "type": "Http",
+                                    "inputs": {
+                                        "headers": {
+                                            "Ocp-Apim-Subscription-Key": ""
+                                        },
+                                        "method": "GET",
+                                        "uri": "@{outputs('Get_Result_URL_from_header')}"
+                                    }
+                                },
+                                "Parse_extracted_data_JSON": {
+                                    "runAfter": {
+                                        "Form_Recognizer:_Get_Analysis_Result": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ParseJson",
+                                    "inputs": {
+                                        "content": "@body('Form_Recognizer:_Get_Analysis_Result')",
+                                        "schema": {
+                                            "properties": {
+                                                "analyzeResult": {
+                                                    "properties": {
+                                                        "documentResults": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "docType": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "fields": {
+                                                                        "properties": {
+                                                                            "DeliveryNumber": {
+                                                                                "properties": {
+                                                                                    "boundingBox": {
+                                                                                        "items": {
+                                                                                            "type": "integer"
+                                                                                        },
+                                                                                        "type": "array"
+                                                                                    },
+                                                                                    "confidence": {
+                                                                                        "type": "number"
+                                                                                    },
+                                                                                    "page": {
+                                                                                        "type": "integer"
+                                                                                    },
+                                                                                    "text": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "valueString": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            },
+                                                                            "InvoiceNumber": {
+                                                                                "properties": {
+                                                                                    "boundingBox": {
+                                                                                        "items": {
+                                                                                            "type": "integer"
+                                                                                        },
+                                                                                        "type": "array"
+                                                                                    },
+                                                                                    "confidence": {
+                                                                                        "type": "number"
+                                                                                    },
+                                                                                    "page": {
+                                                                                        "type": "integer"
+                                                                                    },
+                                                                                    "text": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "valueString": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            },
+                                                                            "ShippingReference": {
+                                                                                "properties": {
+                                                                                    "boundingBox": {
+                                                                                        "items": {
+                                                                                            "type": "integer"
+                                                                                        },
+                                                                                        "type": "array"
+                                                                                    },
+                                                                                    "confidence": {
+                                                                                        "type": "number"
+                                                                                    },
+                                                                                    "page": {
+                                                                                        "type": "integer"
+                                                                                    },
+                                                                                    "text": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "valueString": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            },
+                                                                            "WorkOrder": {
+                                                                                "properties": {
+                                                                                    "boundingBox": {
+                                                                                        "items": {
+                                                                                            "type": "integer"
+                                                                                        },
+                                                                                        "type": "array"
+                                                                                    },
+                                                                                    "confidence": {
+                                                                                        "type": "number"
+                                                                                    },
+                                                                                    "page": {
+                                                                                        "type": "integer"
+                                                                                    },
+                                                                                    "text": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "valueString": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "type": "object"
+                                                                            }
+                                                                        },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "pageRange": {
+                                                                        "items": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "type": "array"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "docType",
+                                                                    "pageRange",
+                                                                    "fields"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "errors": {
+                                                            "type": "array"
+                                                        },
+                                                        "pageResults": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "page": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "tables": {
+                                                                        "items": {
+                                                                            "properties": {
+                                                                                "cells": {
+                                                                                    "items": {
+                                                                                        "properties": {
+                                                                                            "boundingBox": {
+                                                                                                "items": {
+                                                                                                    "type": "integer"
+                                                                                                },
+                                                                                                "type": "array"
+                                                                                            },
+                                                                                            "columnIndex": {
+                                                                                                "type": "integer"
+                                                                                            },
+                                                                                            "rowIndex": {
+                                                                                                "type": "integer"
+                                                                                            },
+                                                                                            "text": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        },
+                                                                                        "required": [
+                                                                                            "rowIndex",
+                                                                                            "columnIndex",
+                                                                                            "text",
+                                                                                            "boundingBox"
+                                                                                        ],
+                                                                                        "type": "object"
+                                                                                    },
+                                                                                    "type": "array"
+                                                                                },
+                                                                                "columns": {
+                                                                                    "type": "integer"
+                                                                                },
+                                                                                "rows": {
+                                                                                    "type": "integer"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "rows",
+                                                                                "columns",
+                                                                                "cells"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": "array"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "page",
+                                                                    "tables"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "readResults": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "angle": {
+                                                                        "type": "number"
+                                                                    },
+                                                                    "height": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "language": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "page": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "unit": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "width": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "page",
+                                                                    "language",
+                                                                    "angle",
+                                                                    "width",
+                                                                    "height",
+                                                                    "unit"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "version": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "createdDateTime": {
+                                                    "type": "string"
+                                                },
+                                                "lastUpdatedDateTime": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "Set_Status_variable": {
+                                    "runAfter": {
+                                        "Parse_extracted_data_JSON": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "SetVariable",
+                                    "inputs": {
+                                        "name": "Status",
+                                        "value": "@body('Parse_extracted_data_JSON')?['status']"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Initialize_Status_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "expression": "@equals(variables('Status'), 'succeeded')",
+                            "limit": {
+                                "count": 5000,
+                                "timeout": "PT1H"
+                            },
+                            "type": "Until"
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "[parameters('API Connection: Blob Storage')]": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('API Connection: Blob Storage'))]",
+                                "connectionName": "[parameters('API Connection: Blob Storage')]",
+																"id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/azureblob')]"
+                            },
+                            "[parameters('API Connection: Custom Vision')]": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('API Connection: Custom Vision'))]",
+                                "connectionName": "[parameters('API Connection: Custom Vision')]",
+																"id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/cognitiveservicescustomvision')]"
+                            },
+                            "[parameters('API Connection: Cosmos DB')]": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('API Connection: Cosmos DB'))]",
+                                "connectionName": "[parameters('API Connection: Cosmos DB')]",
+																"id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/documentdb')]"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('Logic App: Document Search')]",
+            "location": "westus2",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', parameters('API Connection: Blob Storage'))]",
+                "[resourceId('Microsoft.Web/connections', parameters('API Connection: Cosmos DB'))]"
+            ],
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "outputs": {},
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "manual": {
+                            "type": "Request",
+                            "kind": "Http",
+                            "inputs": {
+                                "method": "POST",
+                                "schema": {
+                                    "properties": {
+                                        "customerName": { "type": "string" },
+                                        "deliveryNumber": { "type": ["string", "null" ] },
+                                        "documentType": { "type": "string" },
+                                        "invoiceNumber": { "type": ["string", "null"] },
+                                        "shippingReference": { "type": ["string", "null"] },
+                                        "workOrder": { "type": ["string", "null"] }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Validate_customer_name": {
+                            "actions": {
+                                "Bad_Request_-_no_customer_name": {
+                                    "inputs": {
+                                        "body": "Customer Name is required.",
+                                        "headers": { "Content-Type": "application/json" },
+                                        "statusCode": 500
+                                    },
+                                    "kind": "Http",
+                                    "runAfter": {},
+                                    "type": "Response"
+                                },
+                                "Terminate_-_empty_customer_name": {
+                                    "inputs": {
+                                        "runError": {
+                                            "code": "NoCustomerName",
+                                            "message": "Customer Name is required."
+                                        },
+                                        "runStatus": "Failed"
+                                    },
+                                    "runAfter": {
+                                        "Bad_Request_-_no_customer_name": ["Succeeded"]
+                                    },
+                                    "type": "Terminate"
+                                }
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "equals": [
+                                            "@empty(triggerBody()?['customerName'])",
+                                            "@true"
+                                        ]
+                                    }
+                                ]
+                            },
+                            "runAfter": {},
+                            "type": "If"
+                        },
+                        "If_delivery_number_is_populated": {
+                            "actions": {
+                                "Query_by_delivery_number": {
+                                    "inputs": {
+                                        "body": {
+                                            "QueryText": "SELECT c.id FROM c WHERE c.deliveryNumber = '@{triggerBody()?['deliveryNumber']}'"
+                                        },
+                                        "host": {
+                                            "connection": {
+                                                "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Cosmos DB'), '''][''connectionId'']')]"
+                                            }
+                                        },
+                                        "method": "post",
+																				"path": "[concat('/v2/dbs/@{encodeURIComponent(''', parameters('Cosmos DB: Database'), ''')}/colls/@{encodeURIComponent(''', parameters('Cosmos DB: Database Collection'), ''')}/query')]",
+                                        "queries": {
+                                            "partitionKey": "@triggerBody()?['customerName']"
+                                        }
+                                    },
+                                    "runAfter": {},
+                                    "type": "ApiConnection"
+                                }
+                            },
+                            "else": {
+                                "actions": {
+                                    "If_invoice_number_is_populated": {
+                                        "actions": {
+                                            "Query_by_invoice_number": {
+                                                "inputs": {
+                                                    "body": {
+                                                        "QueryText": "SELECT c.id FROM c WHERE c.invoiceNumber = '@{triggerBody()?['invoiceNumber']}'"
+                                                    },
+                                                    "host": {
+                                                        "connection": {
+                                                            "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Cosmos DB'), '''][''connectionId'']')]"
+                                                        }
+                                                    },
+                                                    "method": "post",
+																										"path": "[concat('/v2/dbs/@{encodeURIComponent(''', parameters('Cosmos DB: Database'), ''')}/colls/@{encodeURIComponent(''', parameters('Cosmos DB: Database Collection'), ''')}/query')]",
+                                                    "queries": {
+                                                        "partitionKey": "@triggerBody()?['customerName']"
+                                                    }
+                                                },
+                                                "runAfter": {},
+                                                "type": "ApiConnection"
+                                            }
+                                        },
+                                        "else": {
+                                            "actions": {
+                                                "If_shipping_reference_is_populated": {
+                                                    "actions": {
+                                                        "Query_by_shipping_reference": {
+                                                            "inputs": {
+                                                                "body": {
+                                                                    "QueryText": "SELECT c.id FROM c WHERE c.shippingReference = '@{triggerBody()?['shippingReference']}'"
+                                                                },
+                                                                "host": {
+                                                                    "connection": {
+                                                                        "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Cosmos DB'), '''][''connectionId'']')]"
+                                                                    }
+                                                                },
+                                                                "method": "post",
+																																"path": "[concat('/v2/dbs/@{encodeURIComponent(''', parameters('Cosmos DB: Database'), ''')}/colls/@{encodeURIComponent(''', parameters('Cosmos DB: Database Collection'), ''')}/query')]",
+                                                                "queries": {
+                                                                    "partitionKey": "@triggerBody()?['customerName']"
+                                                                }
+                                                            },
+                                                            "runAfter": {},
+                                                            "type": "ApiConnection"
+                                                        }
+                                                    },
+                                                    "else": {
+                                                        "actions": {
+                                                            "If_work_order_is_populated": {
+                                                                "actions": {
+                                                                    "Query_by_work_order": {
+                                                                        "inputs": {
+                                                                            "body": {
+                                                                                "QueryText": "SELECT c.id FROM c WHERE c.workOrder = '@{triggerBody()?['workOrder']}'"
+                                                                            },
+                                                                            "host": {
+                                                                                "connection": {
+                                                                                    "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Cosmos DB'), '''][''connectionId'']')]"
+                                                                                }
+                                                                            },
+                                                                            "method": "post",
+																																						"path": "[concat('/v2/dbs/@{encodeURIComponent(''', parameters('Cosmos DB: Database'), ''')}/colls/@{encodeURIComponent(''', parameters('Cosmos DB: Database Collection'), ''')}/query')]",
+                                                                            "queries": {
+                                                                                "partitionKey": "@triggerBody()?['customerName']"
+                                                                            }
+                                                                        },
+                                                                        "runAfter": {},
+                                                                        "type": "ApiConnection"
+                                                                    }
+                                                                },
+                                                                "else": {
+                                                                    "actions": {
+                                                                        "Bad_Request_-_invalid_delivery_packet_query_parameters": {
+                                                                            "inputs": {
+                                                                                "body": "None of the packet search parameters were populated.",
+                                                                                "headers": { "Content-Type": "application/json" },
+                                                                                "statusCode": 500
+                                                                            },
+                                                                            "kind": "Http",
+                                                                            "runAfter": {},
+                                                                            "type": "Response"
+                                                                        },
+                                                                        "Terminate_-_no_delivery_packet_query_parameters": {
+                                                                            "inputs": {
+                                                                                "runError": {
+                                                                                    "code": "EmptyParameters",
+                                                                                    "message": "None of the packet search parameters were populated."
+                                                                                },
+                                                                                "runStatus": "Failed"
+                                                                            },
+                                                                            "runAfter": {
+                                                                                "Bad_Request_-_invalid_delivery_packet_query_parameters": ["Succeeded"]
+                                                                            },
+                                                                            "type": "Terminate"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "expression": {
+                                                                    "and": [
+                                                                        {
+                                                                            "equals": ["@empty(triggerBody()?['workOrder'])", "@false"]
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                "runAfter": {},
+                                                                "type": "If"
+                                                            }
+                                                        }
+                                                    },
+                                                    "expression": {
+                                                        "and": [
+                                                            {
+                                                                "equals": ["@empty(triggerBody()?['shippingReference'])", "@false"]
+                                                            }
+                                                        ]
+                                                    },
+                                                    "runAfter": {},
+                                                    "type": "If"
+                                                }
+                                            }
+                                        },
+                                        "expression": {
+                                            "and": [
+                                                {
+                                                    "equals": ["@empty(triggerBody()?['invoiceNumber'])", "@false"]
+                                                }
+                                            ]
+                                        },
+                                        "runAfter": {},
+                                        "type": "If"
+                                    }
+                                }
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "equals": ["@empty(triggerBody()?['deliveryNumber'])", "@false"]
+                                    }
+                                ]
+                            },
+                            "runAfter": {
+                                "Validate_customer_name": ["Succeeded"]
+                            },
+                            "type": "If"
+                        },
+                        "Initialize_DocumentsFound_variable": {
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "DocumentsFound",
+                                        "type": "array",
+                                        "value": "@coalesce(body('Query_by_delivery_number')?['Documents'], body('Query_by_invoice_number')?['Documents'], body('Query_by_shipping_reference')?['Documents'], body('Query_by_work_order')?['Documents'])"
+                                    }
+                                ]
+                            },
+                            "runAfter": {
+                                "If_delivery_number_is_populated": ["Succeeded"]
+                            },
+                            "type": "InitializeVariable"
+                        },
+                        "If_documents_were_found": {
+                            "actions": {
+                                "Get_sought_blob_content": {
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "[concat('@parameters(''$connections'')[''', parameters('API Connection: Blob Storage'), '''][''connectionId'']')]"
+                                            }
+                                        },
+                                        "method": "get",
+                                        "path": "/datasets/default/GetFileContentByPath",
+                                        "queries": {
+                                            "inferContentType": true,
+                                            "path": "@{concat('packets/', first(variables('DocumentsFound'))?['id'])}",
+                                            "queryParametersSingleEncoded": true
+                                        }
+                                    },
+                                    "runAfter": {},
+                                    "type": "ApiConnection"
+                                },
+                                "Response:_Document_Found": {
+                                    "inputs": {
+                                        "body": "@body('Get_sought_blob_content')",
+                                        "headers": { "Content-Type": "application/pdf" },
+                                        "statusCode": 200
+                                    },
+                                    "kind": "Http",
+                                    "runAfter": {
+                                        "Get_sought_blob_content": ["Succeeded"]
+                                    },
+                                    "type": "Response"
+                                }
+                            },
+                            "else": {
+                                "actions": {
+                                    "Document:_Nothing_Found": {
+                                        "inputs": {
+                                            "body": "No documents found.",
+                                            "headers": { "Content-Type": "application/json" },
+                                            "statusCode": 404
+                                        },
+                                        "kind": "Http",
+                                        "runAfter": {},
+                                        "type": "Response"
+                                    }
+                                }
+                            },
+                            "expression": {
+                                "and": [
+                                    {
+                                        "equals": ["@empty(variables('DocumentsFound'))", "@false"]
+                                    }
+                                ]
+                            },
+                            "runAfter": {
+                                "Initialize_DocumentsFound_variable": ["Succeeded"]
+                            },
+                            "type": "If"
+                        }
+                    }
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "[parameters('API Connection: Blob Storage')]": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('API Connection: Blob Storage'))]",
+                                "connectionName": "[parameters('API Connection: Blob Storage')]",
+																"id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/azureblob')]"
+                            },
+                            "[parameters('API Connection: Cosmos DB')]": {
+                                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('API Connection: Cosmos DB'))]",
+                                "connectionName": "[parameters('API Connection: Cosmos DB')]",
+																"id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/westus2/managedApis/documentdb')]"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

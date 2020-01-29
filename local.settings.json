@@ -1,0 +1,21 @@
+{
+	"IsEncrypted": false,
+	"Values":
+	{
+		"AzureWebJobsStorage": "",
+		"PagesContainer": "",
+		"RequiresClassification": true,
+		"ServiceBus": "",
+		"StorageAccount": "",
+		"ScmType": "None",
+		"APPINSIGHTS_INSTRUMENTATIONKEY": "",
+		"FUNCTIONS_EXTENSION_VERSION": "~3",
+		"FUNCTIONS_WORKER_RUNTIME": "node",
+		"WEBSITE_AUTH_ENABLED": "False",
+		"WEBSITE_NODE_DEFAULT_VERSION": "~12",
+		"WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "",
+		"WEBSITE_CONTENTSHARE": "",
+		"WEBSITE_SITE_NAME": "PDF-Splitter",
+		"WEBSITE_SLOT_NAME": "Development"
+	}
+}

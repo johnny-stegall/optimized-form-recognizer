@@ -1,0 +1,21 @@
+{
+  "bindings":
+  [
+    {
+      "direction": "in",
+      "connection": "AzureWebJobsStorage",
+      "name": "pdfBlob",
+      "path": "production-plans/{name}.pdf",
+      "type": "blobTrigger"
+    },
+    {
+      "accessRights": "listen",
+      "direction": "out",
+      "name": "$return",
+      "type": "serviceBus",
+      "queueName": "",
+      "topicName": "",
+      "connection": "ServiceBus"
+    }
+  ]
+}
